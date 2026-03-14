@@ -55,6 +55,23 @@ async function run() {
       res.send(result);
     })
 
+    //get Ticket
+    app.get('/getTicket', async(req, res) => {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 6;
+      const skip = (page - 1) * limit;
+      const tickets = await ticketsCollection.find({
+        status:"approved"
+      }).skip(skip).limit(limit).toArray();
+      //const tickets = await ticketsCollection.find({}).toArray();
+      const totalTickets = await ticketsCollection.countDocuments({status:"approved"});
+      res.send({
+        tickets,
+        totalPages:Math.ceil(totalTickets / limit),
+        currentPage:page,
+      });
+    });
+
 
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
