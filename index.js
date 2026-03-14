@@ -32,7 +32,11 @@ async function run() {
     await client.connect();
     const db = client.db("goTicket");
     const userCollection = db.collection('user');
+    const ticketsCollection = db.collection('tickets');
 
+
+
+    // post user
     app.post('/user', async(req, res) => {
         const user = req.body;
         const query = {email:user.email};
@@ -42,6 +46,13 @@ async function run() {
         }
         const result = await userCollection.insertOne(user);
         res.send(result);
+    })
+    
+    //post ticket
+    app.post('/tickets', async(req, res) => {
+      const tickets = req.body;
+      const result = await ticketsCollection.insertOne(tickets);
+      res.send(result);
     })
 
 
