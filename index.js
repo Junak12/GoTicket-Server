@@ -72,6 +72,25 @@ async function run() {
       });
     });
 
+    //get ticket by search
+    app.get('/getTicket/search', async(req, res) => {
+      const {from, to, transport} = req.query();
+      const query = {
+        status:"approved",
+      }
+      if (from) {
+        query.from = from;
+      }
+      if (to) {
+        query.to = to;
+      }
+      if (transport) {
+        query.transportType = transport;
+      }
+      const result = await ticketsCollection.find(query).toArray();
+      res.send(result);
+    });
+
 
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
