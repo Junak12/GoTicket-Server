@@ -74,7 +74,7 @@ async function run() {
 
     //get ticket by search
     app.get('/getTicket/search', async(req, res) => {
-      const {from, to, transport} = req.query();
+      const {from, to, transport} = req.query;
       const query = {
         status:"approved",
       }
