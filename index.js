@@ -20,7 +20,6 @@ app.get("/", (req, res) => {
   res.send("GoTicket is running");
 });
 
-
 const uri = process.env.MONGODB_URI;
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -112,27 +111,117 @@ async function run() {
 
     //create post api for payment wih stripe
     app.post("/create-checkout-session", async (req, res) => {
-      const { totalPrice, email } = req.body;
+      const { totalPrice, email, vendorName, ticketId, seats } = req.body;
+      //console.log("BODY:", req.body);
+
       const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
         line_items: [
           {
-            // Provide the exact Price ID (for example, price_1234) of the product you want to sell
             price_data: {
               currency: "bdt",
               product_data: {
-                name: "Ticket Booking",
+                name: vendorName,
               },
               unit_amount: totalPrice * 100,
             },
             quantity: 1,
           },
         ],
-        cusotmer_email: email,
+        customer_email: email,
         mode: "payment",
+        metadata: {
+          ticketId: ticketId,
+          seats: seats.join(","),
+          totalTickets: seats.length.toString(),
+          totalPrice: totalPrice.toString(),
+          email: email,
+        },
         success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.SITE_DOMAIN}/tickets/payment-cancelled`,
+        cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
       });
-      res.send({url:session.url});
+
+      res.send({ url: session.url });
+    });
+
+    //api after payment done to store in booking collection and payment collection and also update the ticket collectio
+
+    app.post("/verify-payment", async (req, res) => {
+      try {
+        const { sessionId } = req.body;
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+        if (session.payment_status !== "paid") {
+          return res
+            .status(400)
+            .send({ success: false, message: "Payment not completed" });
+        }
+        const isExist = await paymentsCollection.findOne({
+          transactionId: session.payment_intent,
+        });
+        if (isExist) {
+          return res.send({ success: true, message: "Already processed" });
+        }
+        const ticketId = session.metadata?.ticketId;
+        const seats = session.metadata?.seats?.split(",") || [];
+        const totalPrice = parseFloat(session.metadata?.totalPrice) || 0;
+
+        if (!ticketId || seats.length === 0) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid metadata" });
+        }
+
+        const bookingResult = await bookingsCollection.insertOne({
+          email: session.customer_email,
+          ticketId: new ObjectId(ticketId),
+          seats,
+          totalPrice,
+          createdAt: new Date(),
+        });
+
+        const ticket = await ticketsCollection.findOne({
+          _id: new ObjectId(ticketId),
+        });
+        if (!ticket) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Ticket not found" });
+        }
+
+        await paymentsCollection.insertOne({
+          email: session.customer_email,
+          ticketId: new ObjectId(ticketId),
+          bookingId: bookingResult.insertedId,
+          amount: session.amount_total / 100,
+          paymentMethod: "stripe",
+          transactionId: session.payment_intent,
+          status: "success",
+          vendorEmail: ticket.vendorEmail || "unknown",
+          createdAt: new Date(),
+        });
+
+        await ticketsCollection.updateOne(
+          { _id: new ObjectId(ticketId) },
+          {
+            $inc: { quantity: -seats.length },
+            $push: { bookedSeats: { $each: seats } },
+          },
+        );
+
+        res.send({
+          success: true,
+          booking: {
+            vendorName: ticket.title,
+            seats: seats,
+            totalTickets: seats.length,
+            totalPrice: totalPrice,
+          },
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ success: false, message: "Server error" });
+      }
     });
 
     await client.db("admin").command({ ping: 1 });
