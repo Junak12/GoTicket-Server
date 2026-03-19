@@ -255,17 +255,18 @@ async function run() {
 
 app.post("/book-ticket", async (req, res) => {
   try {
-    const { ticketId, email, seats, totalPrice } = req.body;
+    const { ticketId, email, seats, totalPrice, selectedPerks } = req.body;
 
     // Find the ticket
     const ticket = await ticketsCollection.findOne({
       _id: new ObjectId(ticketId),
     });
 
-    if (!ticket)
+    if (!ticket) {
       return res
         .status(404)
         .send({ success: false, message: "Ticket not found" });
+    }
 
     if (seats.length > ticket.quantity) {
       return res
@@ -279,17 +280,17 @@ app.post("/book-ticket", async (req, res) => {
       ticketId: new ObjectId(ticketId),
       seats,
       totalPrice,
-      vendorEmail: ticket.vendorEmail || "unknown", // ✅ vendor email
-      status: "pending", // pending by default
+      selectedPerks: selectedPerks || [], 
+      vendorEmail: ticket.vendorEmail || "unknown",
+      status: "pending",
       createdAt: new Date(),
     });
 
-    // Update ticket: decrement quantity and push bookedSeats
     await ticketsCollection.updateOne(
       { _id: new ObjectId(ticketId) },
       {
         $inc: { quantity: -seats.length },
-        $push: { bookedSeats: { $each: seats } }, 
+        $push: { bookedSeats: { $each: seats } },
       },
     );
 
