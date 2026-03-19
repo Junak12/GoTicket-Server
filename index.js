@@ -146,83 +146,112 @@ async function run() {
 
     //api after payment done to store in booking collection and payment collection and also update the ticket collectio
 
-    app.post("/verify-payment", async (req, res) => {
-      try {
-        const { sessionId } = req.body;
-        const session = await stripe.checkout.sessions.retrieve(sessionId);
+app.post("/verify-payment", async (req, res) => {
+  try {
+    const { sessionId } = req.body;
 
-        if (session.payment_status !== "paid") {
-          return res
-            .status(400)
-            .send({ success: false, message: "Payment not completed" });
-        }
-        const isExist = await paymentsCollection.findOne({
-          transactionId: session.payment_intent,
-        });
-        if (isExist) {
-          return res.send({ success: true, message: "Already processed" });
-        }
-        const ticketId = session.metadata?.ticketId;
-        const seats = session.metadata?.seats?.split(",") || [];
-        const totalPrice = parseFloat(session.metadata?.totalPrice) || 0;
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-        if (!ticketId || seats.length === 0) {
-          return res
-            .status(400)
-            .send({ success: false, message: "Invalid metadata" });
-        }
+    if (session.payment_status !== "paid") {
+      return res.status(400).send({
+        success: false,
+        message: "Payment not completed",
+      });
+    }
 
-        const bookingResult = await bookingsCollection.insertOne({
-          email: session.customer_email,
-          ticketId: new ObjectId(ticketId),
-          seats,
-          totalPrice,
-          createdAt: new Date(),
-        });
-
-        const ticket = await ticketsCollection.findOne({
-          _id: new ObjectId(ticketId),
-        });
-        if (!ticket) {
-          return res
-            .status(404)
-            .send({ success: false, message: "Ticket not found" });
-        }
-
-        await paymentsCollection.insertOne({
-          email: session.customer_email,
-          ticketId: new ObjectId(ticketId),
-          bookingId: bookingResult.insertedId,
-          amount: session.amount_total / 100,
-          paymentMethod: "stripe",
-          transactionId: session.payment_intent,
-          status: "success",
-          vendorEmail: ticket.vendorEmail || "unknown",
-          createdAt: new Date(),
-        });
-
-        await ticketsCollection.updateOne(
-          { _id: new ObjectId(ticketId) },
-          {
-            $inc: { quantity: -seats.length },
-            $push: { bookedSeats: { $each: seats } },
-          },
-        );
-
-        res.send({
-          success: true,
-          booking: {
-            vendorName: ticket.title,
-            seats: seats,
-            totalTickets: seats.length,
-            totalPrice: totalPrice,
-          },
-        });
-      } catch (err) {
-        console.error(err);
-        res.status(500).send({ success: false, message: "Server error" });
-      }
+    const isExist = await paymentsCollection.findOne({
+      transactionId: session.payment_intent,
     });
+
+    if (isExist) {
+      const booking = await bookingsCollection.findOne({
+        _id: isExist.bookingId,
+      });
+
+      const ticket = await ticketsCollection.findOne({
+        _id: booking?.ticketId,
+      });
+
+      return res.send({
+        success: true,
+        booking: {
+          vendorName: ticket?.title || "Unknown",
+          seats: booking?.seats || [],
+          totalTickets: booking?.seats?.length || 0,
+          totalPrice: booking?.totalPrice || 0,
+        },
+      });
+    }
+
+    const ticketId = session.metadata?.ticketId;
+    const seats = session.metadata?.seats?.split(",") || [];
+    const totalPrice = parseFloat(session.metadata?.totalPrice) || 0;
+
+    if (!ticketId || seats.length === 0) {
+      return res.status(400).send({
+        success: false,
+        message: "Invalid metadata",
+      });
+    }
+
+    const ticket = await ticketsCollection.findOne({
+      _id: new ObjectId(ticketId),
+    });
+
+    if (!ticket) {
+      return res.status(404).send({
+        success: false,
+        message: "Ticket not found",
+      });
+    }
+
+    const bookingResult = await bookingsCollection.insertOne({
+      email: session.customer_email,
+      ticketId: new ObjectId(ticketId),
+      seats,
+      totalPrice,
+      createdAt: new Date(),
+    });
+
+    await paymentsCollection.insertOne({
+      email: session.customer_email,
+      ticketId: new ObjectId(ticketId),
+      bookingId: bookingResult.insertedId,
+      amount: session.amount_total / 100,
+      paymentMethod: "stripe",
+      transactionId: session.payment_intent,
+      status: "success",
+      vendorEmail: ticket.vendorEmail || "unknown",
+      createdAt: new Date(),
+    });
+
+await ticketsCollection.updateOne(
+  { _id: new ObjectId(ticketId) },
+  {
+    $inc: {
+      quantity: -seats.length,
+      bookingCount: seats.length, 
+    },
+    $push: { bookedSeats: { $each: seats } },
+  },
+);
+    res.send({
+      success: true,
+      booking: {
+        vendorName: ticket.title,
+        seats,
+        totalTickets: seats.length,
+        totalPrice,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
 
     await client.db("admin").command({ ping: 1 });
     console.log(
