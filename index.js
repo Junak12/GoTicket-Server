@@ -309,6 +309,13 @@ async function run() {
       res.send({ success: true, role: user.role });
     })
 
+    //get particular userInformation to show in userDashboard
+    app.get("/userProfile/:email", async(req, res) => {
+      const email = req.params.email;
+      const result = await userCollection.findOne({email});
+      res.send(result);
+    })
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
