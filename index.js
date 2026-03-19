@@ -252,40 +252,45 @@ async function run() {
         });
       }
     });
-
     app.post("/book-ticket", async (req, res) => {
       try {
         const { ticketId, email, seats, totalPrice, selectedPerks } = req.body;
-
-        // Find the ticket
         const ticket = await ticketsCollection.findOne({
           _id: new ObjectId(ticketId),
         });
 
         if (!ticket) {
-          return res
-            .status(404)
-            .send({ success: false, message: "Ticket not found" });
+          return res.status(404).send({
+            success: false,
+            message: "Ticket not found",
+          });
         }
 
         if (seats.length > ticket.quantity) {
-          return res
-            .status(400)
-            .send({ success: false, message: "Not enough tickets available" });
+          return res.status(400).send({
+            success: false,
+            message: "Not enough tickets available",
+          });
         }
 
-        // Insert booking
-        const bookingResult = await bookingsCollection.insertOne({
+        const bookingData = {
           email,
-          ticketId: new ObjectId(ticketId),
+          ticketId: new ObjectId(ticketId), 
+          ticketTitle: ticket.title,
+          ticketImage: ticket.image,
+          from: ticket.from,
+          to: ticket.to,
+          departureTime: ticket.departureTime,
+          unitPrice: ticket.price,
           seats,
           totalPrice,
           selectedPerks: selectedPerks || [],
           vendorEmail: ticket.vendorEmail || "unknown",
           status: "pending",
           createdAt: new Date(),
-        });
-
+          updatedAt: new Date(),
+        };
+        const bookingResult = await bookingsCollection.insertOne(bookingData);
         await ticketsCollection.updateOne(
           { _id: new ObjectId(ticketId) },
           {
@@ -294,7 +299,10 @@ async function run() {
           },
         );
 
-        res.send({ success: true, bookingId: bookingResult.insertedId });
+        res.send({
+          success: true,
+          bookingId: bookingResult.insertedId,
+        });
       } catch (err) {
         console.error(err);
         res.status(500).send({ success: false, message: "Server error" });
@@ -302,19 +310,20 @@ async function run() {
     });
 
     //get api from userCollection for role
-
-    app.get('/user/:email', async(req, res) => {
+    app.get("/user/:email", async (req, res) => {
       const email = req.params.email;
-      const user = await userCollection.find({email});
+      const user = await userCollection.find({ email });
       res.send({ success: true, role: user.role });
-    })
+    });
 
     //get particular userInformation to show in userDashboard
-    app.get("/userProfile/:email", async(req, res) => {
+    app.get("/userProfile/:email", async (req, res) => {
       const email = req.params.email;
-      const result = await userCollection.findOne({email});
+      const result = await userCollection.findOne({ email });
       res.send(result);
-    })
+    });
+
+    //api for getting user booked ticket list
 
     await client.db("admin").command({ ping: 1 });
     console.log(
