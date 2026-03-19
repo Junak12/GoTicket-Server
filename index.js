@@ -275,12 +275,12 @@ async function run() {
 
         const bookingData = {
           email,
-          ticketId: new ObjectId(ticketId), 
+          ticketId: new ObjectId(ticketId),
           ticketTitle: ticket.title,
           ticketImage: ticket.image,
           from: ticket.from,
           to: ticket.to,
-          departureTime: ticket.departureTime,
+          departureTime: ticket.departureDateTime,
           unitPrice: ticket.price,
           seats,
           totalPrice,
@@ -324,6 +324,39 @@ async function run() {
     });
 
     //api for getting user booked ticket list
+    app.get("/userbookticket/:email", async (req, res) => {
+      try {
+        const email = req.params.email.trim().toLowerCase();
+        const bookings = await bookingsCollection
+          .find({ email })
+          .sort({
+            departureTime: 1,
+          })
+          .toArray();
+
+        const response = bookings.map((b) => ({
+          _id: b._id,
+          ticketId: b.ticketId,
+          ticketTitle: b.ticketTitle,
+          ticketImage: b.ticketImage,
+          from: b.from,
+          to: b.to,
+          departureDateTime: b.departureTime,
+          seats: b.seats,
+          totalPrice: b.totalPrice,
+          selectedPerks: b.selectedPerks,
+          vendorEmail: b.vendorEmail,
+          status: b.status,
+          createdAt: b.createdAt,
+          updatedAt: b.updatedAt,
+        }));
+
+        res.send(response);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ success: false, message: "Server error" });
+      }
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
