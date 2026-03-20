@@ -385,6 +385,10 @@ async function run() {
     // create a api for getting tickets for admin dashboard
     app.get("/admin/get-tickets", async(req, res) => {
       const result = await ticketsCollection.find().toArray();
+      result.sort((a, b) => {
+        const order = {pending: 1, approved: 2, rejected: 3};
+        return (order[a.status] || 4) - (order[b.status] || 4)
+      })
       res.send(result)
     })
 
