@@ -54,7 +54,7 @@ async function run() {
     //post ticket
     app.post("/tickets", async (req, res) => {
       const tickets = req.body;
-      const result = await ticketsCollection.insertMany(tickets);
+      const result = await ticketsCollection.insertOne(tickets);
       res.send(result);
     });
 
@@ -380,6 +380,12 @@ async function run() {
         message: "Application submitted",
       });
 
+    })
+
+    // create a api for getting tickets for admin dashboard
+    app.get("/admin/get-tickets", async(req, res) => {
+      const result = await ticketsCollection.find().toArray();
+      res.send(result)
     })
 
     await client.db("admin").command({ ping: 1 });
