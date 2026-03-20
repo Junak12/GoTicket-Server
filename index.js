@@ -37,7 +37,7 @@ async function run() {
     const ticketsCollection = db.collection("tickets");
     const bookingsCollection = db.collection("bookings");
     const paymentsCollection = db.collection("payments");
-    const vendorCollection = db.collection('vendor');
+    const vendorCollection = db.collection("vendor");
 
     // post user
     app.post("/user", async (req, res) => {
@@ -360,13 +360,13 @@ async function run() {
     });
 
     // api for storing vendor in collection
-    app.post("/vendor-request", async(req, res) => {
+    app.post("/vendor-request", async (req, res) => {
       const data = req.body;
       const isExist = await vendorCollection.findOne({
         email: data.email,
       });
       if (isExist) {
-        return res.send({success:false, message:"Already Applied"})
+        return res.send({ success: false, message: "Already Applied" });
       }
 
       const result = await vendorCollection.insertOne({
@@ -379,28 +379,61 @@ async function run() {
         success: true,
         message: "Application submitted",
       });
-
-    })
+    });
 
     // create a api for getting tickets for admin dashboard
-    app.get("/admin/get-tickets", async(req, res) => {
+    app.get("/admin/get-tickets", async (req, res) => {
       const result = await ticketsCollection.find().toArray();
       result.sort((a, b) => {
-        const order = {pending: 1, approved: 2, rejected: 3};
-        return (order[a.status] || 4) - (order[b.status] || 4)
-      })
-      res.send(result)
-    })
+        const order = { pending: 1, approved: 2, rejected: 3 };
+        return (order[a.status] || 4) - (order[b.status] || 4);
+      });
+      res.send(result);
+    });
 
     // api for updating ticketcollection when admin change the status pending to approve
-    app.patch("/admin/ticket/:id/approve", async(req, res) => {
+    app.patch("/admin/ticket/:id/approved", async (req, res) => {
       const id = req.params.id;
+
       const result = await ticketsCollection.updateOne(
-        {_id: new ObjectId(id)},
-        {$set:{status:"approved"}},
+        { _id: new ObjectId(id) },
+        { $set: { status: "approved" } },
       );
-      res.send({success:true, result});
-    })
+
+      if (result.matchedCount === 0) {
+        return res.send({
+          success: false,
+          message: "Ticket not found",
+        });
+      }
+
+      res.send({
+        success: true,
+        result,
+      });
+    });
+
+    // api for updating ticketcollection when admin change the status pending to reject
+    app.patch("/admin/ticket/:id/rejected", async (req, res) => {
+      const id = req.params.id;
+
+      const result = await ticketsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: "rejected" } },
+      );
+
+      if (result.matchedCount === 0) {
+        return res.send({
+          success: false,
+          message: "Ticket not found",
+        });
+      }
+
+      res.send({
+        success: true,
+        result,
+      });
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
