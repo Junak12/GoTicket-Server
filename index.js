@@ -392,6 +392,16 @@ async function run() {
       res.send(result)
     })
 
+    // api for updating ticketcollection when admin change the status pending to approve
+    app.patch("/admin/ticket/:id/approve", async(req, res) => {
+      const id = req.params.id;
+      const result = await ticketsCollection.updateOne(
+        {_id: new ObjectId(id)},
+        {$set:{status:"approved"}},
+      );
+      res.send({success:true, result});
+    })
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
