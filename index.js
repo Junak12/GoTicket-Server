@@ -37,6 +37,7 @@ async function run() {
     const ticketsCollection = db.collection("tickets");
     const bookingsCollection = db.collection("bookings");
     const paymentsCollection = db.collection("payments");
+    const vendorCollection = db.collection('vendor');
 
     // post user
     app.post("/user", async (req, res) => {
@@ -312,7 +313,7 @@ async function run() {
     //get api from userCollection for role
     app.get("/user/:email", async (req, res) => {
       const email = req.params.email;
-      const user = await userCollection.find({ email });
+      const user = await userCollection.findOne({ email });
       res.send({ success: true, role: user.role });
     });
 
@@ -357,6 +358,29 @@ async function run() {
         res.status(500).send({ success: false, message: "Server error" });
       }
     });
+
+    // api for storing vendor in collection
+    app.post("/vendor-request", async(req, res) => {
+      const data = req.body;
+      const isExist = await vendorCollection.findOne({
+        email: data.email,
+      });
+      if (isExist) {
+        return res.send({success:false, message:"Already Applied"})
+      }
+
+      const result = await vendorCollection.insertOne({
+        ...data,
+        status: "pending",
+        createdAt: new Date(),
+      });
+
+      res.send({
+        success: true,
+        message: "Application submitted",
+      });
+
+    })
 
     await client.db("admin").command({ ping: 1 });
     console.log(
