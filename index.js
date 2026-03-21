@@ -445,16 +445,26 @@ async function run() {
         .toArray();
       res.send(result);
     });
-    // api for getting all users for manage vendor application in admin dashboard
 
-    app.get("/admin/vendor-application", async(req, res) => {
+    // api for getting all users for make user as admin in admin dashboard
+    app.patch("/admin/users/:id/make-admin", async(req, res) => {
+      const id = req.params.id;
+      const result = await userCollection.updateOne(
+        {_id: new ObjectId},
+        {$set : {role: "admin", isFraud:false}}
+      );
+      res.send(result)
+    })
+
+    // api for getting all users for manage vendor application in admin dashboard
+    app.get("/admin/vendor-application", async (req, res) => {
       const result = await vendorCollection
         .find({
           status: "pending",
         })
         .toArray();
       res.send(result);
-    })
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
