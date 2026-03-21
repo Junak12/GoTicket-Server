@@ -435,6 +435,27 @@ async function run() {
       });
     });
 
+    // api for getting all users for manage users in admin dashboard
+    app.get("/admin/users", async (req, res) => {
+      const adminEmail = req.query.email;
+      const result = await userCollection
+        .find({
+          email: { $ne: adminEmail },
+        })
+        .toArray();
+      res.send(result);
+    });
+    // api for getting all users for manage vendor application in admin dashboard
+
+    app.get("/admin/vendor-application", async(req, res) => {
+      const result = await vendorCollection
+        .find({
+          status: "pending",
+        })
+        .toArray();
+      res.send(result);
+    })
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
