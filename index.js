@@ -391,6 +391,15 @@ async function run() {
       res.send(result);
     });
 
+    // current logged in ticket details
+    app.get("/admin/users", async (req, res) => {
+      const email = req.query.email;
+      const users = await userCollection
+        .find({ email: { $ne: email } })
+        .toArray();
+      res.send(users);
+    });
+
     // api for updating ticketcollection when admin change the status pending to approve
     app.patch("/admin/ticket/:id/approved", async (req, res) => {
       const id = req.params.id;
@@ -435,25 +444,24 @@ async function run() {
       });
     });
 
-    // api for getting all users for manage users in admin dashboard
-    app.get("/admin/users", async (req, res) => {
-      const adminEmail = req.query.email;
-      const result = await userCollection
-        .find({
-          email: { $ne: adminEmail },
-        })
-        .toArray();
-      res.send(result);
-    });
-
-    // api for getting all users for make user as admin in admin dashboard
-    app.patch("/admin/users/:id/make-admin", async(req, res) => {
+    // api for getting all users for manage users  user to admin in admin dashboard
+    app.patch("/admin/users/:id/make-admin", async (req, res) => {
       const id = req.params.id;
       const result = await userCollection.updateOne(
-        {_id: new ObjectId},
-        {$set : {role: "admin", isFraud:false}}
+        { _id: new ObjectId(id) },
+        { $set: { role: "admin", isFraud: false } },
       );
-      res.send(result)
+      res.send({ success: true });
+    });
+
+    // api for getting all users for manage users user to vendor in admin dashboard
+    app.patch("/admin/users/:id/make-vendor", async(req, res) => {
+      const id = req.params.id;
+      const result = await userCollection.updateOne(
+        {_id: new ObjectId(id)},
+        {set : {role: "vendor", isFraud: false}}
+      );
+      res.send({ success: true });
     })
 
     // api for getting all users for manage vendor application in admin dashboard
