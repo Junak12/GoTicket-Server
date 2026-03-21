@@ -455,14 +455,24 @@ async function run() {
     });
 
     // api for getting all users for manage users user to vendor in admin dashboard
-    app.patch("/admin/users/:id/make-vendor", async(req, res) => {
+    app.patch("/admin/users/:id/make-vendor", async (req, res) => {
+      const id = req.params.id;
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { set: { role: "vendor", isFraud: false } },
+      );
+      res.send({ success: true });
+    });
+
+    // api for getting all users for manage users user to fraud in admin dashboard
+    app.patch("/admin/users/:id/make-fraud", async(req, res) => {
       const id = req.params.id;
       const result = await userCollection.updateOne(
         {_id: new ObjectId(id)},
-        {set : {role: "vendor", isFraud: false}}
+        {$set : {role : "fraud", isFraud:true}}
       );
       res.send({ success: true });
-    })
+    });
 
     // api for getting all users for manage vendor application in admin dashboard
     app.get("/admin/vendor-application", async (req, res) => {
