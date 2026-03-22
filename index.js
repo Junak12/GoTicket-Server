@@ -362,6 +362,22 @@ async function run() {
     // api for storing vendor in collection
     app.post("/vendor-request", async (req, res) => {
       const data = req.body;
+      //console.log(data.email);
+      
+
+      const user = await userCollection.findOne(
+        {email:data.email},
+      );
+
+      if (user) {
+        if (user.role === "admin" || user.role ==='vendor' || user.role ==='fraud') {
+            return res.status(403).send({
+              success: false,
+              message: `Users with role "${user.role}" cannot apply for vendor.`,
+            });   
+        }
+      }
+
       const isExist = await vendorCollection.findOne({
         email: data.email,
       });
