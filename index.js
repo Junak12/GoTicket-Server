@@ -577,6 +577,14 @@ async function run() {
 
     })
 
+    //api for getting all tickets without pagination in admin dashboard Advertise ticket page
+    app.get("/admin/all-tickets", async(req, res) => {
+      const result = await ticketsCollection.find({ status: "approved" }).sort({createdAt: -1}).toArray();
+      res.send(result);
+    })
+
+
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
