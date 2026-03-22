@@ -553,37 +553,80 @@ async function run() {
     });
 
     //api for updating vendor application in admin dashboard to reject
-    app.patch("/admin/vendor-application/reject/:id", async(req, res) => {
+    app.patch("/admin/vendor-application/reject/:id", async (req, res) => {
       const id = req.params.id;
-      const application = await vendorCollection.find(
-        {_id : new ObjectId(id)},
-      );
+      const application = await vendorCollection.find({
+        _id: new ObjectId(id),
+      });
 
       if (!application) {
         return res.status(404).send({
-          success:false,
-          message:"Email not Found",
-        })
+          success: false,
+          message: "Email not Found",
+        });
       }
 
       await vendorCollection.updateOne(
-        {_id:new ObjectId(id)},
-        {$set : {status: "Rejected"}},
-      )
+        { _id: new ObjectId(id) },
+        { $set: { status: "Rejected" } },
+      );
       res.send({
-        success : true,
-        message : "Vendor Application Rejected Successfully",
-      })
-
-    })
+        success: true,
+        message: "Vendor Application Rejected Successfully",
+      });
+    });
 
     //api for getting all tickets without pagination in admin dashboard Advertise ticket page
-    app.get("/admin/all-tickets", async(req, res) => {
-      const result = await ticketsCollection.find({ status: "approved" }).sort({createdAt: -1}).toArray();
+    app.get("/admin/all-tickets", async (req, res) => {
+      const result = await ticketsCollection
+        .find({ status: "approved" })
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
-    })
+    });
 
+    //api for advertise the ticket in admin dashboard advertise ticket page
+    app.patch("/admin/tickets/advertise/:id", async (req, res) => {
+      const id = req.params.id;
 
+      const ticket = await ticketsCollection.findOne({
+        _id: new ObjectId(id),
+      });
+
+      if (!ticket) {
+        return res.status(404).send({
+          success: false,
+          message: "Ticket not found",
+        });
+      }
+
+      const current = ticket.isAdvertised;
+
+      if (!current) {
+        const count = await ticketsCollection.countDocuments({
+          isAdvertised: true,
+        });
+
+        if (count >= 6) {
+          return res.status(400).send({
+            success: false,
+            message: "You cannot advertise more than 6 tickets at a time!",
+          });
+        }
+      }
+
+      await ticketsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { isAdvertised: !current } },
+      );
+
+      res.send({
+        success: true,
+        message: current
+          ? "Ticket removed from Advertisement!"
+          : "Ticket Advertised successfully!",
+      });
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
