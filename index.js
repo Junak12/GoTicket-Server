@@ -363,18 +363,19 @@ async function run() {
     app.post("/vendor-request", async (req, res) => {
       const data = req.body;
       //console.log(data.email);
-      
 
-      const user = await userCollection.findOne(
-        {email:data.email},
-      );
+      const user = await userCollection.findOne({ email: data.email });
 
       if (user) {
-        if (user.role === "admin" || user.role ==='vendor' || user.role ==='fraud') {
-            return res.status(403).send({
-              success: false,
-              message: `Users with role "${user.role}" cannot apply for vendor.`,
-            });   
+        if (
+          user.role === "admin" ||
+          user.role === "vendor" ||
+          user.role === "fraud"
+        ) {
+          return res.status(403).send({
+            success: false,
+            message: `Users with role "${user.role}" cannot apply for vendor.`,
+          });
         }
       }
 
@@ -550,6 +551,31 @@ async function run() {
         message: "Vendor approved & user role updated!",
       });
     });
+
+    //api for updating vendor application in admin dashboard to reject
+    app.patch("/admin/vendor-application/reject/:id", async(req, res) => {
+      const id = req.params.id;
+      const application = await vendorCollection.find(
+        {_id : new ObjectId(id)},
+      );
+
+      if (!application) {
+        return res.status(404).send({
+          success:false,
+          message:"Email not Found",
+        })
+      }
+
+      await vendorCollection.updateOne(
+        {_id:new ObjectId(id)},
+        {$set : {status: "Rejected"}},
+      )
+      res.send({
+        success : true,
+        message : "Vendor Application Rejected Successfully",
+      })
+
+    })
 
     await client.db("admin").command({ ping: 1 });
     console.log(
