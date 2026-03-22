@@ -459,17 +459,17 @@ async function run() {
       const id = req.params.id;
       const result = await userCollection.updateOne(
         { _id: new ObjectId(id) },
-        { set: { role: "vendor", isFraud: false } },
+        { $set: { role: "vendor", isFraud: false } },
       );
       res.send({ success: true });
     });
 
     // api for getting all users for manage users user to fraud in admin dashboard
-    app.patch("/admin/users/:id/make-fraud", async(req, res) => {
+    app.patch("/admin/users/:id/make-fraud", async (req, res) => {
       const id = req.params.id;
       const result = await userCollection.updateOne(
-        {_id: new ObjectId(id)},
-        {$set : {role : "fraud", isFraud:true}}
+        { _id: new ObjectId(id) },
+        { $set: { role: "fraud", isFraud: true } },
       );
       res.send({ success: true });
     });
@@ -482,6 +482,41 @@ async function run() {
         })
         .toArray();
       res.send(result);
+    });
+
+    //api for updating vendor application in admin dashboard to approved
+    app.patch("/admin/vendor-application/approve/:id", async (req, res) => {
+      const id = req.params.id;
+      const application = await vendorCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      await vendorCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: "approved" } },
+      );
+
+      const isExist = await userCollection.findOne({
+        email: application.email,
+      });
+      if (isExist) {
+        await userCollection.updateOne(
+          { email: application.email },
+          { $set: { role: "vendor" } },
+        );
+      } else {
+        await userCollection.insertOne({
+          name: application.fullName,
+          email: application.email,
+          photo: "",
+          role: "vendor",
+          createdAt: new Date(),
+        });
+      }
+
+      res.send({
+        success: true,
+        message: "Vendor approved & user role updated!",
+      });
     });
 
     await client.db("admin").command({ ping: 1 });
