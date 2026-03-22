@@ -487,23 +487,27 @@ async function run() {
     //api for updating vendor application in admin dashboard to approved
     app.patch("/admin/vendor-application/approve/:id", async (req, res) => {
       const id = req.params.id;
+
       const application = await vendorCollection.findOne({
         _id: new ObjectId(id),
       });
-      await vendorCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: { status: "approved" } },
-      );
 
-      const isExist = await userCollection.findOne({
+      if (!application) {
+        return res.status(404).send({
+          success: false,
+          message: "Application not found!",
+        });
+      }
+
+      const user = await userCollection.findOne({
         email: application.email,
       });
-      if (isExist) {
-        await userCollection.updateOne(
-          { email: application.email },
-          { $set: { role: "vendor" } },
+
+      if (!user) {
+        await vendorCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: "approved" } },
         );
-      } else {
         await userCollection.insertOne({
           name: application.fullName,
           email: application.email,
@@ -511,9 +515,21 @@ async function run() {
           role: "vendor",
           createdAt: new Date(),
         });
+        return res.send({
+          success: true,
+          message: "Vendor approved & new user created!",
+        });
       }
 
-      res.send({
+      await vendorCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: "approved" } },
+      );
+      await userCollection.updateOne(
+        { email: user.email },
+        { $set: { role: "vendor" } },
+      );
+      return res.send({
         success: true,
         message: "Vendor approved & user role updated!",
       });
