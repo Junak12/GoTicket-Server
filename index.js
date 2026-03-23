@@ -346,6 +346,39 @@ async function run() {
       res.send(result);
     });
 
+    // api for update profile
+    app.patch("/update-user/:email", async(req, res) => {
+      const email = req.params.email;
+      const {name, photo} = req.body;
+
+      if (!name && !photo) {
+        return res
+          .status(400)
+          .send({ success: false, message: "Nothing to update" });
+      }   
+
+      const updateDoc = {
+        $set : {},
+      };
+      if (name){
+        updateDoc.$set.name = name;
+      }
+      if (photo) {
+        updateDoc.$set.photo = photo;
+      }
+      const result = await userCollection.updateOne(
+        {email},
+        updateDoc
+      );
+
+      if (result.matchedCount === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+      }
+      res.send({ success: true, message: "Profile updated successfully" });
+    })
+
     //api for getting user booked ticket list
     app.get("/userbookticket/:email", async (req, res) => {
       try {
