@@ -53,9 +53,18 @@ async function run() {
 
     //post ticket
     app.post("/tickets", async (req, res) => {
-      const tickets = req.body;
-      const result = await ticketsCollection.insertOne(tickets);
-      res.send(result);
+      try {
+        const ticket = {
+          ...req.body,
+          createdAt: new Date(),
+        };
+
+        const result = await ticketsCollection.insertOne(ticket);
+        res.status(201).send(result);
+      } catch (error) {
+        console.error("Error inserting ticket:", error);
+        res.status(500).send({ message: "Internal Server Error" });
+      }
     });
 
     //get Ticket
@@ -629,18 +638,24 @@ async function run() {
     });
 
     //api for shwoing advertisement ticket section in home page
-    app.get("/home/tickets", async(req, res) => {
-      const result = await ticketsCollection.find({isAdvertised : true}).toArray();
+    app.get("/home/tickets", async (req, res) => {
+      const result = await ticketsCollection
+        .find({ isAdvertised: true })
+        .toArray();
       res.send(result);
-    })
+    });
 
     //api for showing latest tickets in home page
-    app.get("/latest-tickets", async(req, res) => {
-      const result = await ticketsCollection.find({}).sort({
-        createdAt: -1,
-      }).limit(6).toArray();
+    app.get("/latest-tickets", async (req, res) => {
+      const result = await ticketsCollection
+        .find({})
+        .sort({
+          createdAt: -1,
+        })
+        .limit(6)
+        .toArray();
       res.send(result);
-    })
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
