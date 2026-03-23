@@ -262,9 +262,32 @@ async function run() {
         });
       }
     });
+
     app.post("/book-ticket", async (req, res) => {
       try {
         const { ticketId, email, seats, totalPrice, selectedPerks } = req.body;
+
+        const user = await userCollection.findOne({ email });
+        if (!user) {
+          return res.status(404).send({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        if (user.role === "admin") {
+          return res.status(403).send({
+            success: false,
+            message: "Admin users cannot book tickets",
+          });
+        }
+        if (user.role === "vendor") {
+          return res.status(403).send({
+            success: false,
+            message: "Vendor users cannot book tickets",
+          });
+        }
+
         const ticket = await ticketsCollection.findOne({
           _id: new ObjectId(ticketId),
         });
@@ -300,7 +323,9 @@ async function run() {
           createdAt: new Date(),
           updatedAt: new Date(),
         };
+
         const bookingResult = await bookingsCollection.insertOne(bookingData);
+
         await ticketsCollection.updateOne(
           { _id: new ObjectId(ticketId) },
           {
@@ -347,29 +372,26 @@ async function run() {
     });
 
     // api for update profile
-    app.patch("/update-user/:email", async(req, res) => {
+    app.patch("/update-user/:email", async (req, res) => {
       const email = req.params.email;
-      const {name, photo} = req.body;
+      const { name, photo } = req.body;
 
       if (!name && !photo) {
         return res
           .status(400)
           .send({ success: false, message: "Nothing to update" });
-      }   
+      }
 
       const updateDoc = {
-        $set : {},
+        $set: {},
       };
-      if (name){
+      if (name) {
         updateDoc.$set.name = name;
       }
       if (photo) {
         updateDoc.$set.photo = photo;
       }
-      const result = await userCollection.updateOne(
-        {email},
-        updateDoc
-      );
+      const result = await userCollection.updateOne({ email }, updateDoc);
 
       if (result.matchedCount === 0) {
         return res
@@ -377,7 +399,7 @@ async function run() {
           .json({ success: false, message: "User not found" });
       }
       res.send({ success: true, message: "Profile updated successfully" });
-    })
+    });
 
     //api for getting user booked ticket list
     app.get("/userbookticket/:email", async (req, res) => {
