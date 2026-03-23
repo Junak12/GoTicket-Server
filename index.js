@@ -628,6 +628,12 @@ async function run() {
       });
     });
 
+    //api for shwoing advertisement ticket section in home page
+    app.get("/home/tickets", async(req, res) => {
+      const result = await ticketsCollection.find({isAdvertised : true}).toArray();
+      res.send(result);
+    })
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
