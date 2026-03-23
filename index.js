@@ -321,9 +321,22 @@ async function run() {
 
     //get api from userCollection for role
     app.get("/user/:email", async (req, res) => {
-      const email = req.params.email;
-      const user = await userCollection.findOne({ email });
-      res.send({ success: true, role: user.role });
+      try {
+        const email = req.params.email;
+        const user = await userCollection.findOne({ email });
+
+        res.send({
+          success: true,
+          role: user?.role || "user",
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({
+          success: false,
+          message: "Server error",
+          role: "user", // fallback
+        });
+      }
     });
 
     //get particular userInformation to show in userDashboard
