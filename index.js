@@ -428,24 +428,38 @@ async function run() {
 
     // api for updating ticketcollection when admin change the status pending to approve
     app.patch("/admin/ticket/:id/approved", async (req, res) => {
-      const id = req.params.id;
+      try {
+        const id = req.params.id;
 
-      const result = await ticketsCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: { status: "approved" } },
-      );
+        // Update ticket: status + createdAt
+        const result = await ticketsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status: "approved",
+              createdAt: new Date(), // updated to now
+            },
+          },
+        );
 
-      if (result.matchedCount === 0) {
-        return res.send({
-          success: false,
-          message: "Ticket not found",
+        if (result.matchedCount === 0) {
+          return res.send({
+            success: false,
+            message: "Ticket not found",
+          });
+        }
+
+        res.send({
+          success: true,
+          result,
+          message: "Ticket approved and timestamp updated",
         });
+      } catch (error) {
+        console.error(error);
+        res
+          .status(500)
+          .send({ success: false, message: "Internal Server Error" });
       }
-
-      res.send({
-        success: true,
-        result,
-      });
     });
 
     // api for updating ticketcollection when admin change the status pending to reject
