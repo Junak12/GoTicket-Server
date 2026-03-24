@@ -748,6 +748,27 @@ async function run() {
       res.send(result);
     })
 
+    // api for deleting tickets my vendor in My added tickets in vendor dashbaord
+    app.delete("/vendor/my-tickets/delete-ticket/:id", async(req, res) => {
+      const id = req.params.id;
+      const result = await ticketsCollection.deleteOne({
+        _id : new ObjectId(id),
+      })
+
+      if (result.deletedCount === 0) {
+        return res.status(404).send({
+          success: false,
+          message : "Ticket not found",
+        })
+      }
+
+      res.send({
+        success: true,
+        message:"Ticket deleted successfully",
+      })
+
+    })
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
