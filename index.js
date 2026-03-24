@@ -740,34 +740,95 @@ async function run() {
     });
 
     //api for getting my added task in vendor dashboard
-    app.get("/vendor/get-ticket/:email", async(req, res) => {
-      const email = req. params.email;
-      const result = await ticketsCollection.find({
-        vendorEmail : email,
-      }).sort({createdAt : -1}).toArray();
+    app.get("/vendor/get-ticket/:email", async (req, res) => {
+      const email = req.params.email;
+      const result = await ticketsCollection
+        .find({
+          vendorEmail: email,
+        })
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
-    })
+    });
 
     // api for deleting tickets my vendor in My added tickets in vendor dashbaord
-    app.delete("/vendor/my-tickets/delete-ticket/:id", async(req, res) => {
+    app.delete("/vendor/my-tickets/delete-ticket/:id", async (req, res) => {
       const id = req.params.id;
       const result = await ticketsCollection.deleteOne({
-        _id : new ObjectId(id),
-      })
+        _id: new ObjectId(id),
+      });
 
       if (result.deletedCount === 0) {
         return res.status(404).send({
           success: false,
-          message : "Ticket not found",
-        })
+          message: "Ticket not found",
+        });
       }
 
       res.send({
         success: true,
-        message:"Ticket deleted successfully",
-      })
+        message: "Ticket deleted successfully",
+      });
+    });
 
-    })
+    // api for updating ticket details in my added tickets in vendor dashboard
+    app.patch("/vendor/my-tickets/update-ticket/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid ticket ID",
+          });
+        }
+
+        const updatedData = req.body;
+        const allowedFields = [
+          "title",
+          "from",
+          "to",
+          "transportType",
+          "price",
+          "quantity",
+          "departureDateTime",
+          "image",
+          "perks",
+        ];
+
+        const filteredData = {};
+        allowedFields.forEach((field) => {
+          if (updatedData[field] !== undefined) {
+            filteredData[field] = updatedData[field];
+          }
+        });
+
+        filteredData.updatedAt = new Date();
+        const result = await ticketsCollection.updateOne(
+          { _id: new ObjectId(id), status: { $ne: "rejected" } },
+          { $set: filteredData },
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({
+            success: false,
+            message: "Ticket not found or already rejected",
+          });
+        }
+
+        res.send({
+          success: true,
+          message: "Ticket updated successfully",
+        });
+      } catch (error) {
+        console.error("Update error:", error);
+        res.status(500).send({
+          success: false,
+          message: "Update failed",
+          error: error.message,
+        });
+      }
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
