@@ -120,64 +120,84 @@ async function run() {
     });
 
     //create post api for payment wih stripe
+    // Create Checkout Session
     app.post("/create-checkout-session", async (req, res) => {
-      const { totalPrice, email, vendorName, ticketId, seats } = req.body;
-      //console.log("BODY:", req.body);
+      try {
+        const { totalPrice, email, vendorName, ticketId, seats, bookingId } =
+          req.body;
 
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: "bdt",
-              product_data: {
-                name: vendorName,
+        if (!bookingId) {
+          return res.status(400).send({
+            success: false,
+            message: "Booking ID is required",
+          });
+        }
+
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+          line_items: [
+            {
+              price_data: {
+                currency: "bdt",
+                product_data: {
+                  name: vendorName,
+                },
+                unit_amount: totalPrice * 100,
               },
-              unit_amount: totalPrice * 100,
+              quantity: 1,
             },
-            quantity: 1,
+          ],
+          customer_email: email,
+          mode: "payment",
+          metadata: {
+            ticketId: ticketId,
+            bookingId: bookingId, // ✅ Store existing booking
+            seats: seats.join(","),
+            totalTickets: seats.length.toString(),
+            totalPrice: totalPrice.toString(),
+            email: email,
           },
-        ],
-        customer_email: email,
-        mode: "payment",
-        metadata: {
-          ticketId: ticketId,
-          seats: seats.join(","),
-          totalTickets: seats.length.toString(),
-          totalPrice: totalPrice.toString(),
-          email: email,
-        },
-        success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
-      });
+          success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
+        });
 
-      res.send({ url: session.url });
+        res.send({ url: session.url });
+      } catch (err) {
+        console.error("Stripe session error:", err);
+        res.status(500).send({
+          success: false,
+          message: "Could not create checkout session",
+        });
+      }
     });
 
-    //api after payment done to store in booking collection and payment collection and also update the ticket collectio
-
+    // Verify Payment & Update Booking
     app.post("/verify-payment", async (req, res) => {
       try {
         const { sessionId } = req.body;
+        if (!sessionId)
+          return res
+            .status(400)
+            .send({ success: false, message: "Session ID required" });
 
         const session = await stripe.checkout.sessions.retrieve(sessionId);
 
         if (session.payment_status !== "paid") {
-          return res.status(400).send({
-            success: false,
-            message: "Payment not completed",
-          });
+          return res
+            .status(400)
+            .send({ success: false, message: "Payment not completed" });
         }
 
+        // Check if payment already exists
         const isExist = await paymentsCollection.findOne({
           transactionId: session.payment_intent,
         });
 
         if (isExist) {
+          // Already paid
           const booking = await bookingsCollection.findOne({
-            _id: isExist.bookingId,
+            _id: new ObjectId(isExist.bookingId),
           });
-
           const ticket = await ticketsCollection.findOne({
             _id: booking?.ticketId,
           });
@@ -194,39 +214,43 @@ async function run() {
         }
 
         const ticketId = session.metadata?.ticketId;
+        const bookingId = session.metadata?.bookingId;
         const seats = session.metadata?.seats?.split(",") || [];
         const totalPrice = parseFloat(session.metadata?.totalPrice) || 0;
 
-        if (!ticketId || seats.length === 0) {
-          return res.status(400).send({
-            success: false,
-            message: "Invalid metadata",
-          });
+        if (!ticketId || !bookingId || seats.length === 0) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid metadata" });
         }
 
+        // Find the ticket
         const ticket = await ticketsCollection.findOne({
           _id: new ObjectId(ticketId),
         });
+        if (!ticket)
+          return res
+            .status(404)
+            .send({ success: false, message: "Ticket not found" });
 
-        if (!ticket) {
-          return res.status(404).send({
-            success: false,
-            message: "Ticket not found",
-          });
-        }
+        // Update existing booking
+        await bookingsCollection.updateOne(
+          { _id: new ObjectId(bookingId) },
+          {
+            $set: {
+              status: "paid",
+              paidAt: new Date(),
+            },
+          },
+        );
 
-        const bookingResult = await bookingsCollection.insertOne({
-          email: session.customer_email,
-          ticketId: new ObjectId(ticketId),
-          seats,
-          totalPrice,
-          createdAt: new Date(),
-        });
-
+        // Create payment record
         await paymentsCollection.insertOne({
           email: session.customer_email,
           ticketId: new ObjectId(ticketId),
-          bookingId: bookingResult.insertedId,
+          bookingId: new ObjectId(bookingId),
+          seats,
+          totalTickets: seats.length,
           amount: session.amount_total / 100,
           paymentMethod: "stripe",
           transactionId: session.payment_intent,
@@ -235,16 +259,15 @@ async function run() {
           createdAt: new Date(),
         });
 
+        // Update ticket collection
         await ticketsCollection.updateOne(
           { _id: new ObjectId(ticketId) },
           {
-            $inc: {
-              quantity: -seats.length,
-              bookingCount: seats.length,
-            },
+            $inc: { quantity: -seats.length, bookingCount: seats.length },
             $push: { bookedSeats: { $each: seats } },
           },
         );
+
         res.send({
           success: true,
           booking: {
@@ -255,11 +278,8 @@ async function run() {
           },
         });
       } catch (err) {
-        console.error(err);
-        res.status(500).send({
-          success: false,
-          message: "Server error",
-        });
+        console.error("Verify payment error:", err);
+        res.status(500).send({ success: false, message: "Server error" });
       }
     });
 
@@ -831,71 +851,73 @@ async function run() {
     });
 
     //api for getting booked tickets as pending in requested bookings in vendor dashboard
-    app.get("/vendor/req-bookings/:email", async(req, res) => {
+    app.get("/vendor/req-bookings/:email", async (req, res) => {
       const email = req.params.email;
-      const result = await bookingsCollection.find({vendorEmail : email, status:"pending"}).sort({createdAt: -1}).toArray();
+      const result = await bookingsCollection
+        .find({ vendorEmail: email, status: "pending" })
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
-    })
+    });
 
     // api for updating status of booking ticket in request booking page in vendor dashboard
-    app.patch("/vendor/req-bookings/approved/:id" , async(req, res) => {
-      const id = req.params.id;
-      const booking = await bookingsCollection.findOne({_id : new ObjectId(id)});
-      if (!booking) {
-        return res.status(404).send({
-          success:false,
-          message:"Booking not found",
-        })
-      }
-
-      const result = await bookingsCollection.updateOne(
-        {_id : new ObjectId(id)},
-        {$set : {
-          status : "approved",
-          updatedAt: new Date(),
-        }}
-      );
-      res.send({
-        success : true,
-        message:"Booking request has been approved successfully!",
-        result,
-      })
-
-    })
-
-    //api for rejecting status of booking ticket in requesting booking page in vendor dashboard
-    app.patch("/vendor/req-bookings/reject/:id", async(req, res) => {
+    app.patch("/vendor/req-bookings/approved/:id", async (req, res) => {
       const id = req.params.id;
       const booking = await bookingsCollection.findOne({
-        _id : new ObjectId(id),
-      })
-
+        _id: new ObjectId(id),
+      });
       if (!booking) {
         return res.status(404).send({
-          success:false,
-          message: "Bookings not found!"
-        })
+          success: false,
+          message: "Booking not found",
+        });
       }
 
       const result = await bookingsCollection.updateOne(
-        {_id : new ObjectId(id)},
+        { _id: new ObjectId(id) },
         {
-          $set : {
-            status:"rejected",
+          $set: {
+            status: "approved",
             updatedAt: new Date(),
-          }
-        }
-      )
+          },
+        },
+      );
       res.send({
-        success : true,
-        message : "Booking status has been rejected!",
+        success: true,
+        message: "Booking request has been approved successfully!",
         result,
-      })
+      });
+    });
 
+    //api for rejecting status of booking ticket in requesting booking page in vendor dashboard
+    app.patch("/vendor/req-bookings/reject/:id", async (req, res) => {
+      const id = req.params.id;
+      const booking = await bookingsCollection.findOne({
+        _id: new ObjectId(id),
+      });
 
-    }) 
+      if (!booking) {
+        return res.status(404).send({
+          success: false,
+          message: "Bookings not found!",
+        });
+      }
 
-    
+      const result = await bookingsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            status: "rejected",
+            updatedAt: new Date(),
+          },
+        },
+      );
+      res.send({
+        success: true,
+        message: "Booking status has been rejected!",
+        result,
+      });
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
