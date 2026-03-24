@@ -837,6 +837,32 @@ async function run() {
       res.send(result);
     })
 
+    // api for updating status of booking ticket in request booking page in vendor dashboard
+    app.patch("/vendor/req-bookings/approved/:id" , async(req, res) => {
+      const id = req.params.id;
+      const booking = await bookingsCollection.findOne({_id : new ObjectId(id)});
+      if (!booking) {
+        res.status(404).send({
+          success:false,
+          message:"Booking not found",
+        })
+      }
+
+      const result = await bookingsCollection.updateOne(
+        {_id : new ObjectId(id)},
+        {$set : {
+          status : "approved",
+          updatedAt: new Date(),
+        }}
+      );
+      res.send({
+        success : true,
+        message:"Booking request has been approved successfully!",
+        result,
+      })
+
+    })
+
     
 
     await client.db("admin").command({ ping: 1 });
