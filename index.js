@@ -739,6 +739,15 @@ async function run() {
       res.send(result);
     });
 
+    //api for getting my added task in vendor dashboard
+    app.get("/vendor/get-ticket/:email", async(req, res) => {
+      const email = req. params.email;
+      const result = await ticketsCollection.find({
+        vendorEmail : email,
+      }).sort({createdAt : -1}).toArray();
+      res.send(result);
+    })
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
