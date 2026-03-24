@@ -842,7 +842,7 @@ async function run() {
       const id = req.params.id;
       const booking = await bookingsCollection.findOne({_id : new ObjectId(id)});
       if (!booking) {
-        res.status(404).send({
+        return res.status(404).send({
           success:false,
           message:"Booking not found",
         })
@@ -862,6 +862,38 @@ async function run() {
       })
 
     })
+
+    //api for rejecting status of booking ticket in requesting booking page in vendor dashboard
+    app.patch("/vendor/req-bookings/reject/:id", async(req, res) => {
+      const id = req.params.id;
+      const booking = await bookingsCollection.findOne({
+        _id : new ObjectId(id),
+      })
+
+      if (!booking) {
+        return res.status(404).send({
+          success:false,
+          message: "Bookings not found!"
+        })
+      }
+
+      const result = await bookingsCollection.updateOne(
+        {_id : new ObjectId(id)},
+        {
+          $set : {
+            status:"rejected",
+            updatedAt: new Date(),
+          }
+        }
+      )
+      res.send({
+        success : true,
+        message : "Booking status has been rejected!",
+        result,
+      })
+
+
+    }) 
 
     
 
