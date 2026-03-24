@@ -830,6 +830,15 @@ async function run() {
       }
     });
 
+    //api for getting booked tickets as pending in requested bookings in vendor dashboard
+    app.get("/vendor/req-bookings/:email", async(req, res) => {
+      const email = req.params.email;
+      const result = await bookingsCollection.find({vendorEmail : email, status:"pending"}).sort({createdAt: -1}).toArray();
+      res.send(result);
+    })
+
+    
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
