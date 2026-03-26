@@ -922,6 +922,37 @@ async function run() {
       });
     });
 
+    //api for showing total revenue in vendor dashboard revenue page
+
+    app.get("/vendor/revenue-overview", async (req, res) => {
+      try {
+        const paymentStats = await paymentsCollection
+          .aggregate([
+            {
+              $match: { status: "success" },
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$amount" },
+                totalTicketsSold: { $sum: "$totalTickets" },
+              },
+            },
+          ])
+          .toArray();
+        const totalTicketsAdded = await ticketsCollection.countDocuments();
+
+        res.send({
+          totalRevenue: paymentStats[0]?.totalRevenue || 0,
+          totalTicketsSold: paymentStats[0]?.totalTicketsSold || 0,
+          totalTicketsAdded,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Failed to load stats" });
+      }
+    });
+
     //api for showing transaction history in user dashboard
     app.get("/user/transactions/:email", async (req, res) => {
       const payments = await paymentsCollection
