@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
 import Stripe from "stripe";
+import PDFDocument from "pdfkit";
+import fs from "fs";
+import path from "path";
 
 dotenv.config();
 const stripe = new Stripe(process.env.STRIPE_SECRET);
@@ -917,6 +920,31 @@ async function run() {
         message: "Booking status has been rejected!",
         result,
       });
+    });
+
+    //api for showing transaction history in user dashboard
+    app.get("/user/transactions/:email", async (req, res) => {
+      const payments = await paymentsCollection
+        .find({ email: req.params.email })
+        .toArray();
+
+      const ticketIds = payments.map((p) => p.ticketId);
+
+      const tickets = await ticketsCollection
+        .find({ _id: { $in: ticketIds } })
+        .toArray();
+
+      const ticketMap = {};
+      tickets.forEach((t) => {
+        ticketMap[t._id] = t.title;
+      });
+
+      const result = payments.map((p) => ({
+        ...p,
+        ticketTitle: ticketMap[p.ticketId] || "Unknown",
+      }));
+
+      res.send(result);
     });
 
     await client.db("admin").command({ ping: 1 });
